@@ -1,10 +1,10 @@
 ---
 name: Crypto Multi-Timeframe Price Action Analyzer (5m Focus)
 description: 纯价格行为多时间框架分析专家。每次必须从日线开始，自上而下分析日线→4H→1H→15m→5m→1m，最后专门在5分钟级别寻找高概率交易机会。只看价格结构、Swing High/Low、关键形态、止损扫荡。客观分析，不直接给出买卖建议。
-version: 1.1
+version: 1.2
 author: zzy
 tags: [crypto, price-action, multi-timeframe, 5m-setup, market-structure]
-requires: [ccxt, pandas]
+requires: [curl, awk]
 ---
 
 ## 使用说明
@@ -17,17 +17,25 @@ requires: [ccxt, pandas]
 
 ## 技能执行步骤（SOP）
 
-1. 解析交易对（默认Binance永续合约，如 BTCUSDT → BTC/USDT:USDT）
+1. 解析交易对（默认Binance永续合约，如 BTCUSDT）
 
-2. 使用 CCXT 从 Binance 拉取以下数据（必须全部获取）：
-   - 日线 (1D)：最后 200 根 K 线
-   - 4H：最后 300 根 K 线
-   - 1H：最后 400 根 K 线
-   - 15m：最后 500 根 K 线
-   - 5m：最后 600 根 K 线
-   - 1m：最后 300 根 K 线
+2. **运行数据获取脚本**获取所有时间框架 K 线数据：
+   ```bash
+   bash ~/.claude/skills/crypto-multi-timeframe-price-action-analyzer-5m-focus/fetch_klines.sh <交易对> /tmp/klines_data
+   ```
+   脚本会自动从 Binance 永续合约 API 拉取以下数据并保存为 CSV：
+   - 日线 (1d)：最后 200 根 K 线 → `/tmp/klines_data/<SYMBOL>_1d.csv`
+   - 4H (4h)：最后 300 根 K 线 → `/tmp/klines_data/<SYMBOL>_4h.csv`
+   - 1H (1h)：最后 400 根 K 线 → `/tmp/klines_data/<SYMBOL>_1h.csv`
+   - 15m：最后 500 根 K 线 → `/tmp/klines_data/<SYMBOL>_15m.csv`
+   - 5m：最后 600 根 K 线 → `/tmp/klines_data/<SYMBOL>_5m.csv`
+   - 1m：最后 300 根 K 线 → `/tmp/klines_data/<SYMBOL>_1m.csv`
 
-3. 自上而下执行价格行为分析（模拟真实价格行为交易者）：
+   CSV 格式：`timestamp,datetime,open,high,low,close,volume`
+
+3. **读取 CSV 文件进行分析**：按照日线→4H→1H→15m→5m→1m 的顺序，依次读取对应 CSV 文件
+
+4. 自上而下执行价格行为分析（模拟真实价格行为交易者）：
    - **日线**：判断整体市场结构（牛市/熊市/震荡）、主要Swing High/Low、关键支撑阻力、长期趋势方向
    - **4H**：确认日线结构是否一致，找出中级高低点、BOS/CHOCH
    - **1H**：细化中级结构，标记重要价位
@@ -39,7 +47,7 @@ requires: [ccxt, pandas]
      - 是否出现5m级别的BOS/CHOCH与更高TF一致
    - **1m**：用于最后确认入场蜡烛的精确形态和时机
 
-4. 输出严格固定格式：
+5. 输出严格固定格式：
    - **整体偏向**（来自日线+4H）
    - **关键价位汇总**（所有时间框架共用的重要支撑/阻力）
    - **日线分析**：结构 + 主要高低点
