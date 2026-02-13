@@ -1,10 +1,10 @@
 ---
 name: Crypto Multi-Timeframe Price Action & Smart Money Analyzer (5m Focus)
-description: 融合经典价格行为与Smart Money Concepts的多时间框架分析专家。每次必须从日线开始，自上而下分析日线→4H→1H→15m→5m→1m。涵盖市场结构、机构行为（Order Block/FVG/流动性扫荡）、多空力量对比、成交量确认。最终在5分钟级别寻找高概率交易机会。客观分析，不直接给出买卖建议。
-version: 2.0
+description: 融合经典价格行为、Smart Money Concepts与衍生品市场数据的多时间框架分析专家。每次必须从日线开始，自上而下分析日线→4H→1H→15m→5m→1m。涵盖市场结构、机构行为（Order Block/FVG/流动性扫荡）、多空力量对比、成交量确认、多空比/主动买卖/爆仓数据。最终在5分钟级别寻找高概率交易机会。客观分析，不直接给出买卖建议。
+version: 3.0
 author: zzy
-tags: [crypto, price-action, smart-money, multi-timeframe, 5m-setup, market-structure, liquidity, order-flow]
-requires: [curl, awk]
+tags: [crypto, price-action, smart-money, multi-timeframe, 5m-setup, market-structure, liquidity, order-flow, liquidation, derivatives]
+requires: [curl, awk, perl]
 ---
 
 ## 使用说明
@@ -19,7 +19,7 @@ requires: [curl, awk]
 
 ## 核心分析框架
 
-本技能融合三大体系，形成完整的分析方法论：
+本技能融合四大体系，形成完整的分析方法论：
 
 ### A. 经典价格行为（Market Structure）
 - **趋势判断**：HH/HL（上升）、LH/LL（下降）、横盘震荡
@@ -97,6 +97,42 @@ requires: [curl, awk]
 - **关键位置的量能特征**：在支撑/阻力位放量 = 该位置受到尊重；在OB/FVG回踩时放量反转 = 机构在此防守
 - **扫荡确认**：流动性扫荡通常伴随瞬间放量（止损被触发），随后成交量回归正常
 
+### E. 衍生品市场数据分析（Derivatives Data）
+
+#### E1. 多空比分析（Long/Short Ratio）
+- **定义**：全市场多头账户与空头账户的比例，反映散户群体的持仓偏好
+- **核心信号**：
+  - 多空比极端偏多（> 2.0）= 散户集中做多 → 逆向指标，多头止损是流动性来源
+  - 多空比极端偏空（< 0.5）= 散户集中做空 → 逆向指标，空头止损是流动性来源
+  - 多空比在扫荡后急剧反转 = 确认流动性已被收割
+  - 多空比持续向一方倾斜 = 该方向的流动性池在持续增长
+- **与流动性扫荡的配合**：
+  - 价格出现长影线 + 多空比在同一时间急剧变化 = 强确认扫荡事件
+  - 散户越集中的方向 = 机构越有动力去收割那一方的止损
+
+#### E2. 主动买卖分析（Taker Buy/Sell Volume）
+- **定义**：主动吃单的买卖比例，反映市场参与者的急迫程度
+- **核心信号**：
+  - 买卖比 > 1 + 价格上涨 = 主动买盘推动，真实需求驱动上涨
+  - 买卖比 < 1 + 价格上涨 = 上涨缺乏主动买入支撑 → 可能是假突破或空头回补
+  - 买卖比 > 1 + 价格不涨 = 有人在上方大量卖出吸收买盘 = 派发（Distribution）
+  - 买卖比 < 1 + 价格不跌 = 有人在下方大量买入吸收卖盘 = 吸筹（Accumulation）
+- **扫荡时的 Taker 特征**：
+  - 流动性扫荡瞬间出现极端的买卖比不平衡（止损触发 = 被动吃单激增）
+  - 扫荡后 Taker 方向迅速反转 = 确认扫荡完成、真正方向启动
+
+#### E3. 爆仓级联检测（Liquidation Cascade Detection）
+- **综合判断条件**（需多个信号同时出现）：
+  1. 价格快速单方向运动 + 大实体K线
+  2. 成交量暴增（是平时的 2-5 倍以上）
+  3. 出现长影线（扫荡结束信号）
+  4. 多空比在同一时间发生剧烈变化
+  5. Taker 买卖比出现极端不平衡
+- **爆仓级联 = 流动性扫荡的最强证据**
+- **级联结束标志**：价格企稳 + 成交量回归正常 + 多空比变化趋缓
+- **级联后的典型走势**：快速反转 + FVG + 强劲 Displacement → 高概率入场区
+- **注意**：爆仓级联后的反转不一定是趋势反转，可能只是短期反弹（需结合更高TF判断）
+
 ---
 
 ## 技能执行步骤（SOP）
@@ -105,53 +141,70 @@ requires: [curl, awk]
 
 解析交易对（默认Binance永续合约，如 BTCUSDT），运行数据获取脚本：
 ```bash
-bash ~/.claude/skills/crypto-multi-timeframe-price-action-analyzer-5m-focus/fetch_klines.sh <交易对> /tmp/klines_data
+bash ~/.claude/skills/crypto-price-action-analyzer/fetch_klines.sh <交易对> /tmp/klines_data
 ```
 脚本会自动从 Binance 永续合约 API 拉取以下数据并保存为 CSV：
-- 日线 (1d)：最后 200 根 K 线 → `/tmp/klines_data/<SYMBOL>_1d.csv`
-- 4H (4h)：最后 300 根 K 线 → `/tmp/klines_data/<SYMBOL>_4h.csv`
-- 1H (1h)：最后 400 根 K 线 → `/tmp/klines_data/<SYMBOL>_1h.csv`
-- 15m：最后 500 根 K 线 → `/tmp/klines_data/<SYMBOL>_15m.csv`
-- 5m：最后 600 根 K 线 → `/tmp/klines_data/<SYMBOL>_5m.csv`
-- 1m：最后 300 根 K 线 → `/tmp/klines_data/<SYMBOL>_1m.csv`
 
-CSV 格式：`timestamp,datetime,open,high,low,close,volume`
+**K线数据 (OHLCV)：**
+- 日线 (1d)：200 根 → `/tmp/klines_data/<SYMBOL>_1d.csv`
+- 4H (4h)：300 根 → `/tmp/klines_data/<SYMBOL>_4h.csv`
+- 1H (1h)：400 根 → `/tmp/klines_data/<SYMBOL>_1h.csv`
+- 15m：500 根 → `/tmp/klines_data/<SYMBOL>_15m.csv`
+- 5m：600 根 → `/tmp/klines_data/<SYMBOL>_5m.csv`
+- 1m：300 根 → `/tmp/klines_data/<SYMBOL>_1m.csv`
+
+**衍生品数据（每种数据 5 个周期：1d / 4h / 1h / 15m / 5m）：**
+- 多空比 (L/S Ratio) → `/tmp/klines_data/<SYMBOL>_lsratio_<period>.csv`
+- 主动买卖比 (Taker) → `/tmp/klines_data/<SYMBOL>_taker_<period>.csv`
+- 爆仓订单 → `/tmp/klines_data/<SYMBOL>_liquidations.csv`（如接口可用）
+
+CSV 格式：
+- K线：`timestamp,datetime,open,high,low,close,volume`
+- 多空比：`timestamp,datetime,long_short_ratio,long_account,short_account`
+- 主动买卖：`timestamp,datetime,buy_sell_ratio,buy_vol,sell_vol`
+- 爆仓订单：`timestamp,datetime,side,price,avg_price,quantity,quote_qty`
 
 ### 第二步：读取 CSV 文件
 
-按照日线→4H→1H→15m→5m→1m 的顺序，依次读取对应 CSV 文件
+按照日线→4H→1H→15m→5m→1m 的顺序，依次读取对应的 K线 CSV 和同周期的衍生品 CSV 文件。
+每个时间框架读取时，同时加载该周期对应的多空比、Taker 数据。
 
 ### 第三步：自上而下多维度分析
 
-每个时间框架必须从以下四个维度进行分析：
+每个时间框架必须从以下**五个维度**进行分析：
 1. **结构维度**：趋势方向、BOS/CHoCH、Swing High/Low
 2. **机构维度**：Order Block、FVG、Premium/Discount
 3. **流动性维度**：流动性池位置、是否已被扫荡、下一个目标
 4. **力量维度**：多空动量对比、成交量特征、被套交易者
+5. **衍生品维度**：多空比偏向、Taker 方向、爆仓级联检测
 
 #### 日线分析
 - **结构**：判断整体市场结构（牛市/熊市/震荡），标记主要 Swing High/Low，识别最近的 BOS/CHoCH
 - **机构**：标记日线级别的 Order Block 和未填补的 FVG，判断当前价格处于 Premium 还是 Discount
 - **流动性**：标记日线级别的流动性池（前高上方/前低下方/等幅高低点），判断哪个流动性池最可能被攻击
 - **力量**：日线K线实体趋势（多头动量增强还是减弱），近期成交量趋势
+- **衍生品**：日线级别多空比宏观偏向（散户整体持仓方向），Taker 长期趋势方向
 
 #### 4H 分析
 - **结构**：确认是否与日线方向一致，找出4H级别的 BOS/CHoCH，中级 Swing 高低点
 - **机构**：标记4H级别 OB 和 FVG，判断价格是否在日线 OB/FVG 范围内运动
 - **流动性**：4H级别流动性池，是否有近期扫荡事件，扫荡后的价格反应
 - **力量**：4H K线动量变化，成交量与价格运动是否匹配（Effort vs. Result）
+- **衍生品**：多空比是否出现极端值（> 2.0 或 < 0.5），Taker 方向是否与价格方向一致
 
 #### 1H 分析
 - **结构**：细化中级结构，1H 级别的趋势和关键点位
 - **机构**：1H 级别 OB/FVG，是否嵌套在更高TF的 OB 内部（嵌套OB = 高概率区域）
 - **流动性**：1H 流动性池，近期扫荡行为
 - **力量**：多空控制权判断（连续K线的收盘位置分析）
+- **衍生品**：Taker 买卖比在关键位置的表现，多空比与 1H 趋势的一致性/背离
 
 #### 15m 分析
 - **结构**：近期结构细节，识别 15m 级别的 BOS/CHoCH
 - **机构**：15m OB/FVG，寻找与更高TF OB 重叠的区域
 - **流动性**：15m 级别的等幅高低点和止损密集区
 - **力量**：最近数根K线的多空交替情况，是否出现动量衰减
+- **衍生品**：多空比短期波动方向，Taker 是否出现极端不平衡
 
 #### 5m 分析（重中之重 — 寻找交易机会）
 必须同时满足以下条件才列出交易机会：
@@ -164,6 +217,10 @@ CSV 格式：`timestamp,datetime,open,high,low,close,volume`
   - 出现 Displacement（强劲的位移K线）+ FVG
   - 止损扫荡后出现快速反转
 - **成交量确认**：入场信号伴随成交量放大或量价关系合理
+- **衍生品确认**（加分项，非必须但显著提高概率）：
+  - Taker 买卖比与交易方向一致（做多时买卖比 > 1）
+  - 多空比不处于交易方向的极端值（避免做多时多空比已极端偏多）
+  - 在入场前出现过爆仓级联 + 反转 = 最高概率设置
 - **被套交易者识别**：明确对手方的止损位置，作为利润目标参考
 
 #### 1m 分析
@@ -178,6 +235,7 @@ CSV 格式：`timestamp,datetime,open,high,low,close,volume`
 ### 1. 整体偏向
 - 来自日线+4H 的综合判断：看多 / 看空 / 中性
 - 当前价格在宏观结构中的位置（Premium/Discount/Equilibrium）
+- 衍生品数据整体倾向（散户持仓偏向、Taker 方向）
 
 ### 2. 关键价位汇总
 | 价位 | 类型 | 来源TF | 说明 |
@@ -188,36 +246,45 @@ CSV 格式：`timestamp,datetime,open,high,low,close,volume`
 - **上方流动性目标**：列出价格上方的流动性池及其位置
 - **下方流动性目标**：列出价格下方的流动性池及其位置
 - **最可能被攻击的目标**：基于当前结构和动量判断
+- **衍生品佐证**：多空比极端侧的止损方向、近期爆仓集中价位
 
 ### 4. 各时间框架分析
-- **日线**：结构 + OB/FVG + 流动性 + 多空力量
-- **4H**：结构 + OB/FVG + 流动性 + 多空力量
-- **1H**：结构 + OB/FVG + 流动性
-- **15m**：近期行为 + 流动性
+- **日线**：结构 + OB/FVG + 流动性 + 多空力量 + 衍生品
+- **4H**：结构 + OB/FVG + 流动性 + 多空力量 + 衍生品
+- **1H**：结构 + OB/FVG + 流动性 + 衍生品
+- **15m**：近期行为 + 流动性 + 衍生品
 - **1m**：微观确认
 
 ### 5. 多空力量综合判断
-- **多头证据**：列出支持上涨的所有信号
-- **空头证据**：列出支持下跌的所有信号
+- **多头证据**：列出支持上涨的所有信号（含衍生品信号）
+- **空头证据**：列出支持下跌的所有信号（含衍生品信号）
 - **当前控制方**：综合判断谁在控制市场
 - **关键转换信号**：什么情况下控制权会发生转换
 
-### 6. 5m 交易机会（重中之重）
+### 6. 衍生品数据综合解读
+- **多空比状态**：当前散户持仓偏向、是否处于极端值
+- **Taker 方向**：近期主动买卖的方向、是否与价格方向一致
+- **爆仓风险区域**：基于多空比极端值和价格结构，标记最可能触发爆仓级联的价格区域
+- **流动性增强判断**：衍生品数据对价格行为推导的流动性池的确认/否定
+
+### 7. 5m 交易机会（重中之重）
 - **机会1**：
   - 方向：做多/做空
   - 入场区域：具体价位范围 + 原因（OB/FVG/扫荡后）
   - 与更高TF的关系：为什么这个位置有机构支撑
   - 流动性逻辑：已扫荡了哪个流动性池 / 目标是哪个流动性池
+  - 衍生品确认：多空比/Taker 是否支持该方向
   - 成交量确认：当前量价关系是否支持
   - 止损位置：明确的无效价位
   - 目标区域：基于流动性池和更高TF关键位
   - 无效条件：什么情况下该机会失效
 - **机会2/3**：（如果有，格式同上）
 
-### 7. 关键观察
+### 8. 关键观察
 - 接下来 5-30 分钟需要关注的价位和形态
 - 预期的流动性抓取方向
 - 可能改变当前判断的关键事件
+- 衍生品数据的关键阈值（多空比突破某值时需要警惕）
 
 ---
 
@@ -228,6 +295,8 @@ CSV 格式：`timestamp,datetime,open,high,low,close,volume`
 - **FVG 优先级**：未填补的 FVG > 部分填补的 FVG > 已填补的 FVG
 - **多空力量必须量化**：不能只说"看涨"，必须给出具体的多头/空头证据清单
 - **成交量不能忽略**：每个关键判断都需要成交量的配合确认
+- **衍生品数据是佐证**：衍生品数据用于增强/削弱价格行为信号的可信度，不应单独作为交易依据
 - 保持100%客观，只描述价格在"说什么"以及机构可能在"做什么"，不给出"买入/卖出"指令
 - 可以对后续的价格走势做出合理的预测，但必须给出无效条件和止损位置
 - **被套交易者是燃料**：始终思考"谁被套了，他们的止损在哪里"
+- **衍生品极端值是预警**：多空比极端、Taker 持续单边 → 市场可能即将出现剧烈运动
