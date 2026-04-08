@@ -141,7 +141,7 @@ requires: [curl, awk, perl]
 
 解析交易对（默认Binance永续合约，如 BTCUSDT），运行数据获取脚本：
 ```bash
-bash ~/.claude/skills/crypto-price-action-analyzer/fetch_klines.sh <交易对> /tmp/klines_data
+bash scripts/fetch_klines.sh <交易对> /tmp/klines_data
 ```
 脚本会自动从 Binance 永续合约 API 拉取以下数据并保存为 CSV：
 
