@@ -1,8 +1,8 @@
 # Crypto Trading Skills
 
-一个面向加密市场研究的 skill 仓库，当前收录价格行为分析与 Polymarket 短周期市场研究两类技能。
+一个可持续扩展的加密交易研究 skill 仓库，聚合价格行为分析、市场结构研究、Polymarket 短周期市场监控等可复用工作流。
 
-A small collection of reusable crypto trading and market-analysis skills, organized under `skills/`.
+An extensible repository of reusable crypto trading and market-analysis skills, covering price action, market structure, and short-term Polymarket research.
 
 ## Skills
 
